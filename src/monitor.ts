@@ -32,6 +32,9 @@ import {
   MESSAGE_PROCESS_TIMEOUT_MS,
   WS_HEARTBEAT_INTERVAL_MS,
   WS_MAX_RECONNECT_ATTEMPTS,
+  EVENT_ENTER_CHECK_UPDATE,
+  CMD_ENTER_EVENT_REPLY,
+  SCENE_WECOM_OPENCLAW,
 } from "./const.js";
 import type { WeComMonitorOptions, MessageState } from "./interface.js";
 import { parseMessageContent, type MessageBody } from "./message-parser.js";
@@ -51,6 +54,7 @@ import {
   cleanupAccount,
 } from "./state-manager.js";
 import { withTimeout } from "./timeout.js";
+import { PLUGIN_VERSION } from "./version.js";
 
 /**
  * 去除文本中的 `<think>...</think>` 标签（支持跨行），返回剩余可见文本。
@@ -658,6 +662,8 @@ export async function monitorWeComProvider(options: WeComMonitorOptions): Promis
       logger,
       heartbeatInterval: WS_HEARTBEAT_INTERVAL_MS,
       maxReconnectAttempts: WS_MAX_RECONNECT_ATTEMPTS,
+      scene: SCENE_WECOM_OPENCLAW,
+      plug_version: PLUGIN_VERSION,
     });
 
     // 清理函数：确保所有资源被释放
@@ -702,6 +708,16 @@ export async function monitorWeComProvider(options: WeComMonitorOptions): Promis
       // 认证失败时拒绝 Promise
       if (error.message.includes("Authentication failed")) {
         cleanup().finally(() => reject(error));
+      }
+    });
+
+    // 监听版本检查事件：收到 enter_check_update 时回复当前插件版本
+    wsClient.on(EVENT_ENTER_CHECK_UPDATE as any, async (frame: WsFrame) => {
+      try {
+        // runtime.log?.(`[${account.accountId}] Received enter_check_update, replying with version=${PLUGIN_VERSION}`);
+        await wsClient.reply(frame, { version: PLUGIN_VERSION }, CMD_ENTER_EVENT_REPLY);
+      } catch (err) {
+        // runtime.error?.(`[${account.accountId}] Failed to reply enter_check_update: ${String(err)}`);
       }
     });
 

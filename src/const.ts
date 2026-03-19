@@ -113,3 +113,20 @@ export const ABSOLUTE_MAX_BYTES = FILE_MAX_BYTES;
 
 /** 上传分片大小（字节，Base64 编码前）：512KB */
 export const UPLOAD_CHUNK_SIZE = 512 * 1024;
+
+// ============================================================================
+// 事件/命令名称常量
+// ============================================================================
+
+/** 版本检查事件名称（SDK 事件监听用） */
+export const EVENT_ENTER_CHECK_UPDATE = "event.enter_check_update";
+
+/** 版本检查事件回复命令名称 */
+export const CMD_ENTER_EVENT_REPLY = "ww_ai_robot_enter_event";
+
+// ============================================================================
+// SDK 连接配置
+// ============================================================================
+
+/** WSClient scene 参数：企微 OpenClaw 场景 */
+export const SCENE_WECOM_OPENCLAW = 1;

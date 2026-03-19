@@ -2239,10 +2239,10 @@
   dependencies:
     "@types/node" "*"
 
-"@wecom/aibot-node-sdk@^1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@wecom/aibot-node-sdk/-/aibot-node-sdk-1.0.2.tgz#88a96c7a89043d85cb76257b01e71cb6582f5832"
-  integrity sha512-azClUIMWWF5vs8K1YWBiNykTFUawej0Z1ooN0ZMGX/PlLB/BK0dQfwbLc1a5Wj3bLRLaFb8HuCTuBrxLnJKJ7g==
+"@wecom/aibot-node-sdk@^1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@wecom/aibot-node-sdk/-/aibot-node-sdk-1.0.3.tgz#012618fb4fda17d6e8b0d70e65bebc0e9b0f8f29"
+  integrity sha512-IGOMuXPd1fB13H57OW+Z1/yNlM6ukSVr/h9O/HtV5E06lQv5KPGuVGTagC6vJoxV/lhcwJ756B2srTqrlz5coQ==
   dependencies:
     axios "^1.6.7"
     eventemitter3 "^5.0.1"
@@ -3494,9 +3494,9 @@ koffi@^2.9.0:
   resolved "https://registry.yarnpkg.com/koffi/-/koffi-2.15.2.tgz#1ab8e04f496b9e8eeeff25c7be159889117a4a68"
   integrity sha512-r9tjJLVRSOhCRWdVyQlF3/Ugzeg13jlzS4czS82MAgLff4W+BcYOW7g8Y62t9O5JYjYOLAjAovAZDNlDfZNu+g==
 
-"libsignal@git+https://github.com/whiskeysockets/libsignal-node.git":
+"libsignal@git+https://github.com/whiskeysockets/libsignal-node":
   version "2.0.1"
-  resolved "git+https://github.com/whiskeysockets/libsignal-node.git#1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67"
+  resolved "git+https://github.com/whiskeysockets/libsignal-node#1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67"
   dependencies:
     curve25519-js "^0.0.4"
     protobufjs "6.8.8"
