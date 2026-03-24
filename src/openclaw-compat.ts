@@ -13,6 +13,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { fileURLToPath } from "node:url";
 
+export const DEFAULT_ACCOUNT_ID = "default";
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -44,10 +46,11 @@ interface SdkExports {
   loadOutboundMediaFromUrl?: (url: string, opts?: OutboundMediaLoadOptions) => Promise<WebMediaResult>;
   detectMime?: (opts: DetectMimeOptions) => Promise<string | undefined>;
   getDefaultMediaLocalRoots?: () => readonly string[];
+  addWildcardAllowFrom?: (allowFrom: string[]) => string[];
 }
 
-const _sdkReady: Promise<SdkExports> = import("openclaw/plugin-sdk")
-  .then((sdk) => {
+const _sdkReady: Promise<SdkExports> = import("openclaw/plugin-sdk/core")
+  .then((sdk: any) => {
     const exports: SdkExports = {};
     if (typeof sdk.loadOutboundMediaFromUrl === "function") {
       exports.loadOutboundMediaFromUrl = sdk.loadOutboundMediaFromUrl;
@@ -58,12 +61,33 @@ const _sdkReady: Promise<SdkExports> = import("openclaw/plugin-sdk")
     if (typeof sdk.getDefaultMediaLocalRoots === "function") {
       exports.getDefaultMediaLocalRoots = sdk.getDefaultMediaLocalRoots;
     }
+    if (typeof sdk.addWildcardAllowFrom === "function") {
+      exports.addWildcardAllowFrom = sdk.addWildcardAllowFrom;
+    }
     return exports;
   })
   .catch(() => {
     // openclaw/plugin-sdk 不可用或版本过低，全部使用 fallback
     return {} as SdkExports;
   });
+
+// 同时尝试从 plugin-sdk/setup 模块探测（缓存同步可用的引用）
+let _cachedAddWildcardAllowFrom: ((allowFrom: string[]) => string[]) | undefined;
+
+const _setupSdkReady: Promise<void> = import("openclaw/plugin-sdk/setup")
+  .then((sdk: any) => {
+    if (typeof sdk.addWildcardAllowFrom === "function") {
+      _cachedAddWildcardAllowFrom = sdk.addWildcardAllowFrom;
+    }
+  })
+  .catch(() => { /* plugin-sdk/setup 不可用 */ });
+
+// 同时也从 core 模块的结果中缓存
+_sdkReady.then((sdk) => {
+  if (!_cachedAddWildcardAllowFrom && sdk.addWildcardAllowFrom) {
+    _cachedAddWildcardAllowFrom = sdk.addWildcardAllowFrom;
+  }
+});
 
 // ============================================================================
 // detectMime —— 检测 MIME 类型
@@ -348,6 +372,38 @@ export async function loadOutboundMediaFromUrl(
 }
 
 // ============================================================================
+// addWildcardAllowFrom —— 向 allowFrom 列表添加通配符 "*"
+// ============================================================================
+
+/** fallback 版 addWildcardAllowFrom：确保列表中包含 "*" 通配符 */
+function addWildcardAllowFromFallback(allowFrom: string[]): string[] {
+  if (allowFrom.includes("*")) {
+    return allowFrom;
+  }
+  return [...allowFrom, "*"];
+}
+
+/**
+ * 向 allowFrom 列表添加通配符 "*"（兼容入口）
+ *
+ * 当 dmPolicy 为 "open" 时，需要确保 allowFrom 中包含 "*" 以允许所有来源。
+ * 优先使用 SDK 版本（plugin-sdk/setup 或 plugin-sdk/core），不可用时使用 fallback。
+ *
+ * 注意：此函数为同步函数，与 SDK 原始签名一致。
+ * SDK 引用在模块加载时异步探测并缓存，调用时同步读取缓存。
+ */
+export function addWildcardAllowFrom(allowFrom: string[]): string[] {
+  if (_cachedAddWildcardAllowFrom) {
+    try {
+      return _cachedAddWildcardAllowFrom(allowFrom);
+    } catch {
+      // SDK 版本异常，降级到 fallback
+    }
+  }
+  return addWildcardAllowFromFallback(allowFrom);
+}
+
+// ============================================================================
 // getDefaultMediaLocalRoots —— 获取默认媒体本地路径白名单
 // ============================================================================
 
@@ -382,4 +438,91 @@ export async function getDefaultMediaLocalRoots(): Promise<readonly string[]> {
     path.join(stateDir, "workspace"),
     path.join(stateDir, "sandboxes"),
   ];
+}
+
+export function emptyPluginConfigSchema(): Record<string, unknown> {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+  };
+}
+
+// ============================================================================
+// 辅助函数（参考 moltbot 实现）
+// ============================================================================
+
+/**
+ * 解析可选的分隔条目
+ * @param value 输入字符串，支持逗号、分号、换行符分隔
+ * @returns 解析后的字符串数组，如果输入为空则返回 undefined
+ */
+export function parseOptionalDelimitedEntries(value?: string): string[] | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+  const parsed = value
+    .split(/[\n,;]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+/**
+ * 构建账户范围的 DM 安全策略
+ */
+export function buildAccountScopedDmSecurityPolicy(params: {
+  cfg: Record<string, unknown>;
+  channelKey: string;
+  accountId?: string | null;
+  fallbackAccountId?: string | null;
+  policy?: string | null;
+  allowFrom?: Array<string | number> | null;
+  defaultPolicy?: string;
+  allowFromPathSuffix?: string;
+  policyPathSuffix?: string;
+  approveChannelId?: string;
+  approveHint?: string;
+  normalizeEntry?: (raw: string) => string;
+}): {
+  policy: string;
+  allowFrom: Array<string | number>;
+  policyPath?: string;
+  allowFromPath: string;
+  approveHint: string;
+  normalizeEntry?: (raw: string) => string;
+} {
+  const DEFAULT_ACCOUNT_ID = "default";
+  const resolvedAccountId = params.accountId ?? params.fallbackAccountId ?? DEFAULT_ACCOUNT_ID;
+  const channelConfig = (params.cfg.channels as Record<string, unknown> | undefined)?.[
+    params.channelKey
+  ] as { accounts?: Record<string, unknown> } | undefined;
+  const useAccountPath = Boolean(channelConfig?.accounts?.[resolvedAccountId]);
+  const basePath = useAccountPath
+    ? `channels.${params.channelKey}.accounts.${resolvedAccountId}.`
+    : `channels.${params.channelKey}.`;
+  const allowFromPath = `${basePath}${params.allowFromPathSuffix ?? ""}`;
+  const policyPath =
+    params.policyPathSuffix != null ? `${basePath}${params.policyPathSuffix}` : undefined;
+
+  return {
+    policy: params.policy ?? params.defaultPolicy ?? "pairing",
+    allowFrom: params.allowFrom ?? [],
+    policyPath,
+    allowFromPath,
+    approveHint:
+      params.approveHint ?? formatPairingApproveHint(params.approveChannelId ?? params.channelKey),
+    normalizeEntry: params.normalizeEntry,
+  };
+}
+
+/**
+ * 格式化配对审批提示信息（参考 moltbot 实现）
+ * @param channelId 频道ID
+ * @returns 配对审批提示字符串
+ */
+export function formatPairingApproveHint(channelId: string): string {
+  const listCmd = `openclaw pairing list ${channelId}`;
+  const approveCmd = `openclaw pairing approve ${channelId} <code>`;
+  return `向 ${channelId} 机器人发送消息以完成配对审批（命令行：${listCmd} / ${approveCmd}）`;
 }

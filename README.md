@@ -35,7 +35,7 @@
 
 ### Requirements
 
-- OpenClaw `>= 2026.2.13`
+- OpenClaw `>= 2026.3.22`
 
 ### Quick Install
 

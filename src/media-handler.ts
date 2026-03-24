@@ -4,7 +4,8 @@
  * 负责下载、检测格式、保存图片到本地，包含超时保护
  */
 
-import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import type { WSClient } from "@wecom/aibot-node-sdk";
 import { fileTypeFromBuffer } from "file-type";
 import { getWeComRuntime } from "./runtime.js";

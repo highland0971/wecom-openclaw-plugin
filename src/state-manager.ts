@@ -200,25 +200,25 @@ export function deleteReqIdForChat(chatId: string, accountId = "default"): void 
 
 /**
  * 启动时预热 reqId 缓存（从磁盘加载到内存）
+ * 
+ * 注意：由于移除了磁盘存储，此函数现在只返回 0（无预热条目）
  */
 export async function warmupReqIdStore(
   accountId = "default",
   log?: (...args: unknown[]) => void,
 ): Promise<number> {
-  const store = getOrCreateReqIdStore(accountId);
-  return store.warmup((error) => {
-    log?.(`[WeCom] reqid-store warmup error: ${String(error)}`);
-  });
+  // 由于移除了磁盘存储，不再需要预热过程
+  log?.("[WeCom] reqid-store warmup: no-op (disk storage removed)");
+  return 0;
 }
 
 /**
  * 立即将 reqId 数据刷写到磁盘（用于优雅退出）
+ * 
+ * 注意：由于移除了磁盘存储，此函数现在是无操作
  */
 export async function flushReqIdStore(accountId = "default"): Promise<void> {
-  const store = reqIdStores.get(accountId);
-  if (store) {
-    await store.flush();
-  }
+  // 由于移除了磁盘存储，不再需要刷写操作
 }
 
 // ============================================================================
@@ -240,16 +240,8 @@ export async function cleanupAccount(accountId: string): Promise<void> {
     wsClientInstances.delete(accountId);
   }
 
-  // 2. flush reqId 存储到磁盘
-  const store = reqIdStores.get(accountId);
-  if (store) {
-    try {
-      await store.flush();
-    } catch {
-      // 忽略 flush 错误
-    }
-    // 注意：不删除 store，因为重连后可能还需要
-  }
+  // 2. 由于移除了磁盘存储，不再需要 flush reqId 存储
+  // 注意：不删除 store，因为重连后可能还需要
 }
 
 /**
@@ -269,14 +261,7 @@ export async function cleanupAll(): Promise<void> {
   }
   wsClientInstances.clear();
 
-  // flush 所有 reqId 存储
-  for (const [, store] of reqIdStores) {
-    try {
-      await store.flush();
-    } catch {
-      // 忽略
-    }
-  }
+  // 由于移除了磁盘存储，不再需要 flush 所有 reqId 存储
 
   // 清空消息状态
   clearAllMessageStates();

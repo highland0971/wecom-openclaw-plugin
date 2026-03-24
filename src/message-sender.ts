@@ -4,7 +4,7 @@
  * 负责通过 WSClient 发送回复消息，包含超时保护
  */
 
-import type { RuntimeEnv } from "openclaw/plugin-sdk";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { type WSClient, type WsFrame, generateReqId } from "@wecom/aibot-node-sdk";
 import { REPLY_SEND_TIMEOUT_MS } from "./const.js";
 import { withTimeout } from "./timeout.js";

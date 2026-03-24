@@ -1,6 +1,6 @@
 {
-  "name": "@tencent/wecom-openclaw-plugin",
-  "version": "2026.3.20",
+  "name": "@wecom/wecom-openclaw-plugin",
+  "version": "2026.3.24",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -37,7 +37,7 @@
   "description": "OpenClaw WeCom (企业微信) channel plugin (official by Tencent WeCom team)",
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.esm.js"
     ],
     "channel": {
       "id": "wecom",
@@ -50,7 +50,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@tencent/wecom-openclaw-plugin",
+      "npmSpec": "@wecom/wecom-openclaw-plugin",
       "localPath": "extensions/wecom-openclaw-plugin",
       "defaultChoice": "npm"
     }
@@ -64,7 +64,7 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
-    "openclaw": ">=2026.2.13",
+    "openclaw": ">=2026.3.13",
     "rollup": "^4.9.6",
     "rollup-plugin-dts": "^6.1.0",
     "tslib": "^2.6.2",

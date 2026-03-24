@@ -1,65 +1,45 @@
 /**
- * 企业微信 onboarding adapter for CLI setup wizard.
+ * 企业微信 setupWizard — 声明式 CLI setup wizard 配置。
+ *
+ * 框架通过 plugin.setupWizard 字段识别并驱动 channel 的引导配置流程。
  */
 
-import {
-  addWildcardAllowFrom,
-  type ChannelOnboardingAdapter,
-  type ChannelOnboardingDmPolicy,
-  type OpenClawConfig,
-  type WizardPrompter,
-} from "openclaw/plugin-sdk";
-import type { ResolvedWeComAccount } from "./utils.js";
+import type { ChannelSetupWizard, ChannelSetupDmPolicy } from "openclaw/plugin-sdk/setup";
+import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import { addWildcardAllowFrom } from "./openclaw-compat.js";
+import type { WeComConfig } from "./utils.js";
 import { resolveWeComAccount, setWeComAccount } from "./utils.js";
 import { CHANNEL_ID } from "./const.js";
 
-const channel = CHANNEL_ID;
+// ============================================================================
+// ChannelSetupAdapter — 框架用于应用配置输入的适配器
+// ============================================================================
 
-/**
- * 企业微信设置帮助说明
- */
-async function noteWeComSetupHelp(prompter: WizardPrompter): Promise<void> {
-  await prompter.note(
-    [
-      "企业微信机器人需要以下配置信息：",
-      "1. Bot ID: 企业微信机器人id",
-      "2. Secret: 企业微信机器人密钥",
-    ].join("\n"),
-    "企业微信设置",
-  );
-}
+export const wecomSetupAdapter: ChannelSetupAdapter = {
+  applyAccountConfig: ({ cfg, input }) => {
+    const patch: Partial<WeComConfig> = {};
 
-/**
- * 提示输入 Bot ID
- */
-async function promptBotId(
-  prompter: WizardPrompter,
-  account: ResolvedWeComAccount | null,
-): Promise<string> {
-  return String(
-    await prompter.text({
-      message: "企业微信机器人 Bot ID",
-      initialValue: account?.botId ?? "",
-      validate: (value) => (value?.trim() ? undefined : "Required"),
-    }),
-  ).trim();
-}
+    if (input.token !== undefined) {
+      patch.botId = String(input.token).trim();
+    }
+    if (input.privateKey !== undefined) {
+      patch.secret = String(input.privateKey).trim();
+    }
 
-/**
- * 提示输入 Secret
- */
-async function promptSecret(
-  prompter: WizardPrompter,
-  account: ResolvedWeComAccount | null,
-): Promise<string> {
-  return String(
-    await prompter.text({
-      message: "企业微信机器人 Secret",
-      initialValue: account?.secret ?? "",
-      validate: (value) => (value?.trim() ? undefined : "Required"),
-    }),
-  ).trim();
-}
+    // 如果是首次配置，默认启用
+    const account = resolveWeComAccount(cfg);
+    if (!account.botId && !account.secret) {
+      patch.enabled = true;
+    }
+
+    return setWeComAccount(cfg, patch);
+  },
+};
+
+// ============================================================================
+// DM Policy 配置
+// ============================================================================
 
 /**
  * 设置企业微信 dmPolicy
@@ -81,9 +61,9 @@ function setWeComDmPolicy(
   });
 }
 
-const dmPolicy: ChannelOnboardingDmPolicy = {
+const dmPolicy: ChannelSetupDmPolicy = {
   label: "企业微信",
-  channel,
+  channel: CHANNEL_ID,
   policyKey: `channels.${CHANNEL_ID}.dmPolicy`,
   allowFromKey: `channels.${CHANNEL_ID}.allowFrom`,
   getCurrent: (cfg) => {
@@ -93,13 +73,13 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
   setPolicy: (cfg, policy) => {
     return setWeComDmPolicy(cfg, policy);
   },
-  promptAllowFrom: async ({cfg, prompter}) => {
+  promptAllowFrom: async ({ cfg, prompter }) => {
     const account = resolveWeComAccount(cfg);
     const existingAllowFrom = account.config.allowFrom ?? [];
 
     const entry = await prompter.text({
-      message: "企业微信允许来源（用户ID或群组ID，每行一个，推荐用于安全控制）",
-      placeholder: "user123 或 group456",
+      message: "企业微信允许来源（用户ID或群组ID，逗号分隔）",
+      placeholder: "user123, group456",
       initialValue: existingAllowFrom[0] ? String(existingAllowFrom[0]) : undefined,
     });
 
@@ -108,50 +88,118 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    return setWeComAccount(cfg, {allowFrom});
+    return setWeComAccount(cfg, { allowFrom });
   },
 };
 
-export const wecomOnboardingAdapter: ChannelOnboardingAdapter = {
-  channel,
-  getStatus: async ({cfg}) => {
-    const account = resolveWeComAccount(cfg);
-    const configured = Boolean(
-      account.botId?.trim() &&
-      account.secret?.trim()
-    );
+// ============================================================================
+// ChannelSetupWizard — 声明式 setup wizard 配置
+// ============================================================================
 
-    return {
-      channel,
-      configured,
-      statusLines: [`企业微信: ${configured ? "已配置" : "需要 Bot ID 和 Secret"}`],
-      selectionHint: configured ? "已配置" : "需要设置",
-    };
+export const wecomSetupWizard: ChannelSetupWizard = {
+  channel: CHANNEL_ID,
+
+  // ── 状态 ──────────────────────────────────────────────────────────────
+  status: {
+    configuredLabel: "已配置 ✓",
+    unconfiguredLabel: "需要 Bot ID 和 Secret",
+    configuredHint: "已配置",
+    unconfiguredHint: "需要设置",
+    resolveConfigured: ({ cfg }) => {
+      const account = resolveWeComAccount(cfg);
+      return Boolean(account.botId?.trim() && account.secret?.trim());
+    },
+    resolveStatusLines: ({ cfg, configured }) => {
+      return [`企业微信: ${configured ? "已配置" : "需要 Bot ID 和 Secret"}`];
+    },
   },
-  configure: async ({cfg, prompter, forceAllowFrom}) => {
-    const account = resolveWeComAccount(cfg);
 
-    if (!account.botId?.trim() || !account.secret?.trim()) {
-      await noteWeComSetupHelp(prompter);
+  // ── 引导说明 ──────────────────────────────────────────────────────────
+  introNote: {
+    title: "企业微信设置",
+    lines: [
+      "企业微信机器人需要以下配置信息：",
+      "1. Bot ID: 企业微信机器人 ID",
+      "2. Secret: 企业微信机器人密钥",
+    ],
+    shouldShow: ({ cfg }) => {
+      const account = resolveWeComAccount(cfg);
+      return !account.botId?.trim() || !account.secret?.trim();
+    },
+  },
+
+  // ── 凭据输入 ──────────────────────────────────────────────────────────
+  credentials: [
+    {
+      inputKey: "token",
+      providerHint: "企业微信",
+      credentialLabel: "Bot ID",
+      envPrompt: "使用环境变量中的 Bot ID？",
+      keepPrompt: "Bot ID 已配置，保留当前值？",
+      inputPrompt: "企业微信机器人 Bot ID",
+      inspect: ({ cfg }) => {
+        const account = resolveWeComAccount(cfg);
+        const hasValue = Boolean(account.botId?.trim());
+        return {
+          accountConfigured: hasValue,
+          hasConfiguredValue: hasValue,
+          resolvedValue: account.botId || undefined,
+        };
+      },
+      applySet: ({ cfg, resolvedValue }) => {
+        return setWeComAccount(cfg, { botId: resolvedValue });
+      },
+    },
+    {
+      inputKey: "privateKey",
+      providerHint: "企业微信",
+      credentialLabel: "Secret",
+      envPrompt: "使用环境变量中的 Secret？",
+      keepPrompt: "Secret 已配置，保留当前值？",
+      inputPrompt: "企业微信机器人 Secret",
+      inspect: ({ cfg }) => {
+        const account = resolveWeComAccount(cfg);
+        const hasValue = Boolean(account.secret?.trim());
+        return {
+          accountConfigured: hasValue,
+          hasConfiguredValue: hasValue,
+          resolvedValue: account.secret || undefined,
+        };
+      },
+      applySet: ({ cfg, resolvedValue }) => {
+        return setWeComAccount(cfg, { secret: resolvedValue });
+      },
+    },
+  ],
+
+  // ── 完成后的最终处理 ──────────────────────────────────────────────────
+  finalize: async ({ cfg }) => {
+    // 确保配置完成后 channel 处于启用状态
+    const account = resolveWeComAccount(cfg);
+    if (account.botId?.trim() && account.secret?.trim() && !account.enabled) {
+      return { cfg: setWeComAccount(cfg, { enabled: true }) };
     }
-
-    // 提示输入必要的配置信息：Bot ID 和 Secret
-    const botId = await promptBotId(prompter, account);
-    const secret = await promptSecret(prompter, account);
-
-    // 使用默认值配置其他选项
-    const cfgWithAccount = setWeComAccount(cfg, {
-      botId,
-      secret,
-      enabled: true,
-      dmPolicy: account.config.dmPolicy ?? "open",
-      allowFrom: account.config.allowFrom ?? [],
-    });
-
-    return {cfg: cfgWithAccount};
+    return undefined;
   },
+
+  // ── 完成提示 ──────────────────────────────────────────────────────────
+  completionNote: {
+    title: "企业微信配置完成",
+    lines: [
+      "企业微信机器人已配置完成。",
+      "运行 `openclaw start` 启动服务。",
+    ],
+    shouldShow: ({ cfg }) => {
+      const account = resolveWeComAccount(cfg);
+      return Boolean(account.botId?.trim() && account.secret?.trim());
+    },
+  },
+
+  // ── DM 策略 ──────────────────────────────────────────────────────────
   dmPolicy,
+
+  // ── 禁用 ─────────────────────────────────────────────────────────────
   disable: (cfg) => {
-    return setWeComAccount(cfg, {enabled: false});
+    return setWeComAccount(cfg, { enabled: false });
   },
 };

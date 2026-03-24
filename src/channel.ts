@@ -1,15 +1,14 @@
 import {
-  DEFAULT_ACCOUNT_ID,
-  formatPairingApproveHint,
   type ChannelPlugin,
-  type ChannelStatusIssue,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/core";
+import type { ChannelStatusIssue } from "openclaw/plugin-sdk/channel-contract";
 
+import { formatPairingApproveHint, DEFAULT_ACCOUNT_ID } from './openclaw-compat.js'
 import { getWeComRuntime } from "./runtime.js";
 import { monitorWeComProvider } from "./monitor.js";
 import { getWeComWebSocket } from "./state-manager.js";
-import { wecomOnboardingAdapter } from "./onboarding.js";
+import { wecomSetupWizard, wecomSetupAdapter } from "./onboarding.js";
 import type { WeComConfig, ResolvedWeComAccount } from "./utils.js";
 import { resolveWeComAccount } from "./utils.js";
 import { CHANNEL_ID, TEXT_CHUNK_LIMIT } from "./const.js";
@@ -84,7 +83,8 @@ export const wecomPlugin: ChannelPlugin<ResolvedWeComAccount> = {
       // Pairing approved for user
     },
   },
-  onboarding: wecomOnboardingAdapter,
+  setupWizard: wecomSetupWizard,
+  setup: wecomSetupAdapter,
   capabilities: {
     chatTypes: ["direct", "group"],
     reactions: false,
