@@ -132,6 +132,24 @@ const plugin = {
       console.log(`[wecom] 回调路由已注册: ${callbackPath}`);
     }
 
+    const hasWebSocketMode = Boolean(account.botId && account.secret);
+    const hasCallbackMode = Boolean(
+      callbackConfig?.token &&
+      callbackConfig?.encodingAESKey &&
+      account.corpId &&
+      account.agentSecret
+    );
+
+    if (hasWebSocketMode && hasCallbackMode) {
+      console.warn(
+        `[wecom] 警告：同时配置了 WebSocket Bot 模式和 HTTP 回调模式。\n` +
+        `  - WebSocket 模式: botId=${account.botId}\n` +
+        `  - 回调模式: corpId=${account.corpId}\n` +
+        `这可能导致每条消息被处理两次。建议只使用一种模式。\n` +
+        `参考文档: docs/DUAL_MODE_ARCHITECTURE.md`
+      );
+    }
+
     // 注入媒体发送指令和文件大小限制提示词（仅对企业微信 channel 生效）
     api.on("before_prompt_build", (_event, ctx) => {
       // 只在企业微信 channel 的会话中注入，避免影响其他 channel 插件

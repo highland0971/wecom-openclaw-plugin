@@ -257,7 +257,13 @@ async function dispatchMessage(
             return;
           }
 
-          if (payload.text) {
+          // 只在 final 时发送完整回复，避免 block 阶段的重复发送
+          // OpenClaw 的 dispatchReplyWithBufferedBlockDispatcher 会多次调用 deliver：
+          // - kind='block': 流式块回复（中间状态）
+          // - kind='final': 最终完整回复
+          // 回调模式不支持消息编辑，每次调用 sendCallbackReply 都会发送新消息，
+          // 因此只在 final 时发送，避免用户收到多条重复回复
+          if (payload.text && info.kind === 'final') {
             runtime.log?.(
               `[wecom][callback][${accountId}] Deliver ${info.kind}: ${payload.text.substring(0, 50)}...`
             );
@@ -278,6 +284,11 @@ async function dispatchMessage(
                 `[wecom][callback][${accountId}] Deliver failed: ${String(err)}`
               );
             }
+          } else if (info.kind === 'block') {
+            // block 阶段的日志，用于调试
+            runtime.log?.(
+              `[wecom][callback][${accountId}] Skipping block reply (waiting for final)`
+            );
           }
         },
         onError: (err: unknown, info: ReplyDispatchInfo) => {
