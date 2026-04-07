@@ -10,7 +10,7 @@
 
 ## 请求示例
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule get_schedule_detail '{"schedule_id_list": ["SCHEDULE_ID_1", "SCHEDULE_ID_2"]}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule get_schedule_detail '{"schedule_id_list": ["SCHEDULE_ID_1", "SCHEDULE_ID_2"]}'`
 
 ## 返回字段
 

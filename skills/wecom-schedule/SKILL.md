@@ -13,7 +13,7 @@ metadata:
 
 > ⚠️ **前置条件**：首次调用 `wecom_mcp` 前，必须按 `wecom-preflight` 技能执行前置条件检查，确保工具已加入白名单。
 
-通过 `wecom_mcp call schedule <接口名> '<json入参>'` 与企业微信日程系统交互。
+通过 `wecom_mcp openapi schedule <接口名> '<json入参>'` 与企业微信日程系统交互。
 
 ## 注意事项
 
@@ -29,19 +29,19 @@ metadata:
 
 ### get_schedule_list_by_range — 查询日程 ID 列表
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule get_schedule_list_by_range '{"start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule get_schedule_list_by_range '{"start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}'`
 
 返回 `schedule_id_list` 数组。仅支持当日前后 30 天。
 
 ### get_schedule_detail — 获取日程详情
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule get_schedule_detail '{"schedule_id_list": ["SCHEDULE_ID_1", "SCHEDULE_ID_2"]}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule get_schedule_detail '{"schedule_id_list": ["SCHEDULE_ID_1", "SCHEDULE_ID_2"]}'`
 
 支持 1~50 个 ID，返回日程标题、时间、地点、参与者等。参见 [API 详情](references/api-get-schedule-detail.md)。
 
 ### create_schedule — 创建日程
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule create_schedule '{"schedule": {"start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS", "summary": "日程标题", "attendees": [{"userid": "USER_ID"}], "reminders": {"is_remind": 1, "remind_before_event_secs": 3600, "timezone": 8}}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule create_schedule '{"schedule": {"start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS", "summary": "日程标题", "attendees": [{"userid": "USER_ID"}], "reminders": {"is_remind": 1, "remind_before_event_secs": 3600, "timezone": 8}}}'`
 
 参见 [API 详情](references/api-create-schedule.md) | [reminders 字段](references/ref-reminders.md)。
 
@@ -51,22 +51,22 @@ metadata:
 
 > ⚠️ **重要**：如果要把全天日程变成普通日程并修改时间，则一定要把 `is_whole_day` 设置为 `0`，否则日程仍会保持全天状态。
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule update_schedule '{"schedule": {"schedule_id": "SCHEDULE_ID", "summary": "更新后的标题"}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule update_schedule '{"schedule": {"schedule_id": "SCHEDULE_ID", "summary": "更新后的标题"}}'`
 
 参见 [API 详情](references/api-update-schedule.md)。
 
 ### cancel_schedule — 取消日程
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule cancel_schedule '{"schedule_id": "SCHEDULE_ID"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule cancel_schedule '{"schedule_id": "SCHEDULE_ID"}'`
 
 ### add_schedule_attendees / del_schedule_attendees — 管理参与人
 
-- 添加参与人：使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule add_schedule_attendees '{"schedule_id": "SCHEDULE_ID", "attendees": [{"userid": "USER_ID"}]}'`
-- 移除参与人：使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule del_schedule_attendees '{"schedule_id": "SCHEDULE_ID", "attendees": [{"userid": "USER_ID"}]}'`
+- 添加参与人：使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule add_schedule_attendees '{"schedule_id": "SCHEDULE_ID", "attendees": [{"userid": "USER_ID"}]}'`
+- 移除参与人：使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule del_schedule_attendees '{"schedule_id": "SCHEDULE_ID", "attendees": [{"userid": "USER_ID"}]}'`
 
 ### check_availability — 查询闲忙
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule check_availability '{"check_user_list": ["USER_ID_1", "USER_ID_2"], "start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule check_availability '{"check_user_list": ["USER_ID_1", "USER_ID_2"], "start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}'`
 
 支持 1~10 个用户，返回各用户的忙碌时段列表。参见 [API 详情](references/api-check-availability.md)。
 

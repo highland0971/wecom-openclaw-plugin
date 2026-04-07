@@ -13,7 +13,7 @@ metadata:
 
 > ⚠️ **前置条件**：首次调用 `wecom_mcp` 前，必须按 `wecom-preflight` 技能执行前置条件检查，确保工具已加入白名单。
 
-通过 `wecom_mcp call msg <接口名> '<json入参>'` 与企业微信消息系统交互。
+通过 `wecom_mcp openapi msg <接口名> '<json入参>'` 与企业微信消息系统交互。
 
 ---
 
@@ -21,25 +21,25 @@ metadata:
 
 ### get_msg_chat_list — 获取会话列表
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59"}'`
 
 按时间范围查询有消息的会话列表，支持分页。参见 [API 详情](references/api-get-msg-chat-list.md)。
 
 ### get_message — 拉取会话消息
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
 
 根据会话类型和 ID 拉取指定时间范围内的消息记录，支持分页。支持 text/image/file/voice/video 消息类型，仅支持 7 天内。参见 [API 详情](references/api-get-messages.md)。
 
 ### get_msg_media — 获取消息文件内容
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_msg_media '{"media_id": "MEDIAID_xxxxxx"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_msg_media '{"media_id": "MEDIAID_xxxxxx"}'`
 
 根据文件 ID 自动下载文件到本地，返回文件的本地路径（`local_path`）、名称、类型、大小及 MIME 类型。用于获取图片、文件、语音、视频等非文本消息的实际内容。参见 [API 详情](references/api-get-msg-media.md)。
 
 ### send_message — 发送文本消息
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg send_message '{"chat_type": 1, "chatid": "zhangsan", "msgtype": "text", "text": {"content": "hello world"}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg send_message '{"chat_type": 1, "chatid": "zhangsan", "msgtype": "text", "text": {"content": "hello world"}}'`
 
 向单聊或群聊发送文本消息。参见 [API 详情](references/api-send-message.md)。
 

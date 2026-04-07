@@ -16,11 +16,11 @@
 
 单聊：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg send_message '{"chat_type": 1, "chatid": "zhangsan", "msgtype": "text", "text": {"content": "hello world"}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg send_message '{"chat_type": 1, "chatid": "zhangsan", "msgtype": "text", "text": {"content": "hello world"}}'`
 
 群聊：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg send_message '{"chat_type": 2, "chatid": "wrxxxxxxxx", "msgtype": "text", "text": {"content": "大家好"}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg send_message '{"chat_type": 2, "chatid": "wrxxxxxxxx", "msgtype": "text", "text": {"content": "大家好"}}'`
 
 ## 返回字段
 

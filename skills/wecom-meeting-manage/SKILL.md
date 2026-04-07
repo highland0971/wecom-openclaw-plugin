@@ -19,7 +19,7 @@ wecom-meeting-manage 提供企业微信会议管理能力, 包含以下功能:
 
 查看可用命令列表：使用 `wecom_mcp` tool 调用 `wecom_mcp list meeting`
 
-调用指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting <tool_name> '<json_params>'`
+调用指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting <tool_name> '<json_params>'`
 
 ---
 
@@ -31,7 +31,7 @@ wecom-meeting-manage 提供企业微信会议管理能力, 包含以下功能:
 
 #### 调用命令
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting cancel_meeting '{"meetingid": "<会议id>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting cancel_meeting '{"meetingid": "<会议id>"}'`
 
 #### 入参说明
 
@@ -56,7 +56,7 @@ wecom-meeting-manage 提供企业微信会议管理能力, 包含以下功能:
 
 #### 调用命令
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting set_invite_meeting_members '{"meetingid": "<会议id>", "invitees": [{"userid": "lisi"}, {"userid": "wangwu"}]}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting set_invite_meeting_members '{"meetingid": "<会议id>", "invitees": [{"userid": "lisi"}, {"userid": "wangwu"}]}'`
 
 #### 入参说明
 
@@ -90,7 +90,7 @@ wecom-meeting-manage 提供企业微信会议管理能力, 包含以下功能:
 1. **定位会议**: 通过 `wecom-meeting-query` 技能查询会议列表 + 关键词匹配找到目标会议.
 2. **直接执行取消**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting cancel_meeting '{"meetingid": "<target_meetingid>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting cancel_meeting '{"meetingid": "<target_meetingid>"}'`
 
 3. **展示结果**:
 
@@ -110,14 +110,14 @@ wecom-meeting-manage 提供企业微信会议管理能力, 包含以下功能:
 2. **获取当前受邀成员**: `set_invite_meeting_members` 为全量覆盖, 必须先通过 `wecom-meeting-query` 技能的 `get_meeting_info` 获取会议详情, 获取现有成员后再合并.
 3. **通讯录查询**: 调用 `wecom-contact-lookup` 技能获取通讯录成员, 按姓名筛选出王五的 userid.
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'`
 
 在返回的 `userlist` 中筛选 `name` 包含 "王五" 的成员, 获取其 `userid`.
 
 4. **合并成员列表**: 将现有成员 + 新增成员合并 (全量覆盖).
 5. **执行更新**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting set_invite_meeting_members '{"meetingid": "<target_meetingid>", "invitees": [{"userid": "zhangsan"}, {"userid": "lisi"}, {"userid": "wangwu"}]}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting set_invite_meeting_members '{"meetingid": "<target_meetingid>", "invitees": [{"userid": "zhangsan"}, {"userid": "lisi"}, {"userid": "wangwu"}]}'`
 
 6. **展示结果**:
 

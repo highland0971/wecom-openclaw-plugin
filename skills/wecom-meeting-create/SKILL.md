@@ -16,7 +16,7 @@ wecom-meeting-create 提供企业微信预约会议的创建能力, 支持设置
 
 查看可用命令列表：使用 `wecom_mcp` tool 调用 `wecom_mcp list meeting`
 
-执行指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting <tool_name> '<json_params>'`
+执行指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting <tool_name> '<json_params>'`
 
 ---
 
@@ -28,7 +28,7 @@ wecom-meeting-create 提供企业微信预约会议的创建能力, 支持设置
 
 #### 执行命令
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting create_meeting '{"title": "<会议标题>", "meeting_start_datetime": "<会议开始时间>", "meeting_duration": <会议持续时长(秒)>}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting create_meeting '{"title": "<会议标题>", "meeting_start_datetime": "<会议开始时间>", "meeting_duration": <会议持续时长(秒)>}'`
 
 #### 入参说明
 
@@ -92,7 +92,7 @@ wecom-meeting-create 提供企业微信预约会议的创建能力, 支持设置
 1. **解析用户意图**: 时间 + 主题已有, 邀请人未提及则默认留空, 直接创建.
 2. **调用创建命令**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting create_meeting '{"title": "周例会", "meeting_start_datetime": "2026-03-18 15:00", "meeting_duration": 3600}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting create_meeting '{"title": "周例会", "meeting_start_datetime": "2026-03-18 15:00", "meeting_duration": 3600}'`
 
 3. **展示结果**:
 
@@ -115,13 +115,13 @@ wecom-meeting-create 提供企业微信预约会议的创建能力, 支持设置
 1. **解析用户意图**: 有邀请人, 需先查询通讯录获取 userid.
 2. **通讯录查询**: 调用 `wecom-contact-lookup` 技能获取通讯录成员, 按姓名筛选出参与者的 userid.
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'`
 
 在返回的 `userlist` 中筛选 `name` 包含 "张三" 和 "李四" 的成员, 获取其 `userid`.
 
 3. **信息已充分, 直接调用创建命令** (禁止暴露内部 ID):
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting create_meeting '{"title": "技术方案评审", "meeting_start_datetime": "2026-03-18 15:00", "meeting_duration": 3600, "location": "3楼会议室", "invitees": {"userid": ["zhangsan", "lisi"]}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting create_meeting '{"title": "技术方案评审", "meeting_start_datetime": "2026-03-18 15:00", "meeting_duration": 3600, "location": "3楼会议室", "invitees": {"userid": ["zhangsan", "lisi"]}}'`
 
 4. **展示结果**:
 

@@ -96,7 +96,7 @@
 
 数组格式，需传 user_id。**user_id 不是姓名**，必须先通过 `wecom-contact-lookup` 技能查找目标人员的 `userid`，再填入此处。
 
-具体步骤：先使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'` 获取通讯录成员列表，在返回结果中按姓名/别名筛选出目标人员，取其 `userid` 值填入。
+具体步骤：先使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'` 获取通讯录成员列表，在返回结果中按姓名/别名筛选出目标人员，取其 `userid` 值填入。
 
 ```json
 "负责人": [{"user_id": "zhangsan"}]

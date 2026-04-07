@@ -12,11 +12,11 @@
 
 ## 请求示例
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59"}'`
 
 分页请求：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59", "cursor": "NEXT_CURSOR"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_msg_chat_list '{"begin_time": "2026-03-11 00:00:00", "end_time": "2026-03-17 23:59:59", "cursor": "NEXT_CURSOR"}'`
 
 ## 返回字段
 

@@ -20,7 +20,7 @@ export type WeComMonitorOptions = {
   runtime: RuntimeEnv;
   abortSignal?: AbortSignal;
   /** 框架层提供的状态更新回调，用于在致命错误场景中标记 channel 已停止 */
-  setStatus?: (next: Record<string, unknown>) => void;
+  setStatus?: (next: { accountId: string } & Record<string, unknown>) => void;
 };
 
 // ============================================================================

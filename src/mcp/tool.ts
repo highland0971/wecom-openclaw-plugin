@@ -1,50 +1,33 @@
 /**
- * wecom_mcp — 模拟 MCP 调用的 Agent Tool
+ * wecom_mcp — 企业微信 OpenAPI 工具
  *
- * 通过 MCP Streamable HTTP 传输协议调用企业微信 MCP Server，
- * 提供 list（列出所有工具）和 call（调用工具）两个操作。
+ * 直接调用企业微信 OpenAPI 接口，无需依赖 MCP Server。
+ * 所有接口都通过 openapi action 调用。
  *
  * 在 skills 中的使用方式：
- *   wecom_mcp list <category>
- *   wecom_mcp call <category> <method> '<jsonArgs>'
+ *   wecom_mcp openapi <category> <method> '<jsonArgs>'
  *
  * 示例：
- *   wecom_mcp list contact
- *   wecom_mcp call contact getContact '{}'
+ *   wecom_mcp openapi message send '{"touser": "user1", "msgtype": "text", ...}'
+ *   wecom_mcp openapi smartsheet addView '{"docid": "...", ...}'
  */
 
-import { sendJsonRpc, type McpToolInfo } from "./transport.js";
-import { cleanSchemaForGemini } from "./schema.js";
-import { resolveBeforeCall, runAfterCall } from "./interceptors/index.js";
+import { getOpenApiService } from "../openapi/index.js";
+import { OpenApiError } from "../openapi/request.js";
 
-// ============================================================================
-// 类型定义
-// ============================================================================
-
-/** wecom_mcp 的入参 */
 interface WeComToolsParams {
-  /** 操作类型：list | call */
-  action: "list" | "call";
-  /** MCP 品类，对应 mcpConfig 中的 key，如 doc、contact */
+  action: "openapi";
   category: string;
-  /** 调用的 MCP 方法名（action=call 时必填） */
-  method?: string;
-  /** 调用 MCP 方法的 JSON 参数（action=call 时使用） */
+  method: string;
   args?: string | Record<string, unknown>;
 }
 
-// ============================================================================
-// 响应构造辅助
-// ============================================================================
-
-/** 构造统一的文本响应结构 */
 const textResult = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+  details: data,
 });
 
-/** 构造错误响应 */
 const errorResult = (err: unknown) => {
-  // 适配企业微信 API 返回的 { errcode, errmsg } 结构
   if (err && typeof err === "object" && "errcode" in err) {
     const { errcode, errmsg } = err as { errcode: number; errmsg?: string };
     return textResult({ error: errmsg ?? `错误码: ${errcode}`, errcode });
@@ -54,105 +37,6 @@ const errorResult = (err: unknown) => {
   return textResult({ error: message });
 };
 
-// ============================================================================
-// list 操作：列出某品类的所有 MCP 工具
-// ============================================================================
-
-const handleList = async (category: string): Promise<unknown> => {
-  const result = await sendJsonRpc(category, "tools/list") as { tools?: McpToolInfo[] } | undefined;
-
-  const tools = result?.tools ?? [];
-  if (tools.length === 0) {
-    return { message: `品类 "${category}" 下暂无可用工具`, tools: [] };
-  }
-
-  return {
-    category,
-    count: tools.length,
-    tools: tools.map((t) => ({
-      name: t.name,
-      description: t.description ?? "",
-      // 清洗 inputSchema，内联 $ref/$defs 引用并移除 Gemini 不支持的关键词，
-      // 避免 Gemini 模型解析 function response 时报 400 错误
-      inputSchema: t.inputSchema ? cleanSchemaForGemini(t.inputSchema) : undefined,
-    })),
-  };
-};
-
-// ============================================================================
-// call 操作：调用某品类的某个 MCP 工具
-// ============================================================================
-
-const handleCall = async (
-  category: string,
-  method: string,
-  args: Record<string, unknown>,
-): Promise<unknown> => {
-  const ctx = { category, method, args };
-  const callStart = performance.now();
-
-  console.log(`[mcp] handleCall ${category}/${method} 入参: ${JSON.stringify(args)}`);
-
-  // 1. 收集拦截器的 beforeCall 配置（如超时时间、替换 args）
-  const { options, args: resolvedArgs } = await resolveBeforeCall(ctx);
-  const finalArgs = resolvedArgs ?? args;
-
-  if (resolvedArgs) {
-    console.log(
-      `[mcp] handleCall ${category}/${method} 拦截器替换 args: ${JSON.stringify(resolvedArgs).slice(0, 500)}` +
-      (JSON.stringify(resolvedArgs).length > 500 ? "...(truncated)" : ""),
-    );
-  }
-  if (options) {
-    console.log(`[mcp] handleCall ${category}/${method} 拦截器选项: ${JSON.stringify(options)}`);
-  }
-
-  // 2. 执行 MCP 调用
-  const result = await sendJsonRpc(category, "tools/call", {
-    name: method,
-    arguments: finalArgs,
-  }, options);
-
-  const rpcDone = performance.now();
-  const rpcMs = (rpcDone - callStart).toFixed(1);
-
-  const resultStr = JSON.stringify(result);
-  console.log(
-    `[mcp] handleCall ${category}/${method} MCP 响应 (${rpcMs}ms): ${resultStr.slice(0, 800)}` +
-    (resultStr.length > 800 ? "...(truncated)" : ""),
-  );
-
-  // 3. 管道式执行 afterCall 拦截器（业务错误码检查、响应变换等）
-  const finalResult = await runAfterCall(ctx, result);
-
-  const totalMs = (performance.now() - callStart).toFixed(1);
-  const interceptMs = (performance.now() - rpcDone).toFixed(1);
-
-  // 有拦截器处理时打印详细耗时，否则只打印 RPC 耗时
-  if (finalResult !== result) {
-    const finalStr = JSON.stringify(finalResult);
-    console.log(
-      `[mcp] handleCall ${category}/${method} afterCall 变换后 (${interceptMs}ms): ${finalStr.slice(0, 500)}` +
-      (finalStr.length > 500 ? "...(truncated)" : ""),
-    );
-    console.log(
-      `[mcp] handleCall ${category}/${method} 总耗时: ${totalMs}ms` +
-      ` (MCP请求: ${rpcMs}ms, 拦截处理: ${interceptMs}ms)`,
-    );
-  } else {
-    console.log(`[mcp] handleCall ${category}/${method} 耗时: ${rpcMs}ms`);
-  }
-
-  return finalResult;
-};
-
-// ============================================================================
-// 参数解析
-// ============================================================================
-
-/**
- * 解析 args 参数：支持 JSON 字符串或直接的对象
- */
 const parseArgs = (args: string | Record<string, unknown> | undefined): Record<string, unknown> => {
   if (!args) return {};
   if (typeof args === "object") return args;
@@ -164,89 +48,301 @@ const parseArgs = (args: string | Record<string, unknown> | undefined): Record<s
   }
 };
 
-// ============================================================================
-// 工具定义 & 导出
-// ============================================================================
+const handleOpenApi = async (
+  category: string,
+  method: string,
+  args: Record<string, unknown>
+): Promise<unknown> => {
+  const openApi = getOpenApiService();
+  if (!openApi) {
+    throw new Error("OpenAPI 服务未初始化，请确保已配置 corpId 和 agentSecret");
+  }
 
-/**
- * 创建 wecom_mcp Agent Tool 定义
- */
+  console.log(`[openapi] handleOpenApi ${category}/${method} 入参: ${JSON.stringify(args).slice(0, 500)}`);
+
+  const startTime = performance.now();
+
+  try {
+    let result: unknown;
+
+    switch (category) {
+      case "message":
+        if (method === "send") {
+          result = await openApi.message.send(args as Parameters<typeof openApi.message.send>[0]);
+        } else if (method === "recall") {
+          result = await openApi.message.recall(args as Parameters<typeof openApi.message.recall>[0]);
+        } else if (method === "createAppChat") {
+          result = await openApi.message.createAppChat(args as Parameters<typeof openApi.message.createAppChat>[0]);
+        } else if (method === "updateAppChat") {
+          result = await openApi.message.updateAppChat(args as Parameters<typeof openApi.message.updateAppChat>[0]);
+        } else if (method === "getAppChat") {
+          result = await openApi.message.getAppChat(args.chatid as string);
+        } else if (method === "sendAppChatMessage") {
+          result = await openApi.message.sendAppChatMessage(args as Parameters<typeof openApi.message.sendAppChatMessage>[0]);
+        } else {
+          throw new Error(`未知的消息 API 方法: ${method}`);
+        }
+        break;
+
+      case "smartsheet":
+        if (method === "addView") {
+          result = await openApi.smartsheet.addView(args as Parameters<typeof openApi.smartsheet.addView>[0]);
+        } else if (method === "deleteViews") {
+          result = await openApi.smartsheet.deleteViews(args as Parameters<typeof openApi.smartsheet.deleteViews>[0]);
+        } else if (method === "updateView") {
+          result = await openApi.smartsheet.updateView(args as Parameters<typeof openApi.smartsheet.updateView>[0]);
+        } else if (method === "getViews") {
+          result = await openApi.smartsheet.getViews(args as Parameters<typeof openApi.smartsheet.getViews>[0]);
+        } else if (method === "getSheet") {
+          result = await openApi.smartsheet.getSheet(args as Parameters<typeof openApi.smartsheet.getSheet>[0]);
+        } else if (method === "addSheet") {
+          result = await openApi.smartsheet.addSheet(args as Parameters<typeof openApi.smartsheet.addSheet>[0]);
+        } else if (method === "updateSheet") {
+          result = await openApi.smartsheet.updateSheet(args as Parameters<typeof openApi.smartsheet.updateSheet>[0]);
+        } else if (method === "deleteSheet") {
+          result = await openApi.smartsheet.deleteSheet(args as Parameters<typeof openApi.smartsheet.deleteSheet>[0]);
+        } else if (method === "getFields") {
+          result = await openApi.smartsheet.getFields(args as Parameters<typeof openApi.smartsheet.getFields>[0]);
+        } else if (method === "addFields") {
+          result = await openApi.smartsheet.addFields(args as Parameters<typeof openApi.smartsheet.addFields>[0]);
+        } else if (method === "updateFields") {
+          result = await openApi.smartsheet.updateFields(args as Parameters<typeof openApi.smartsheet.updateFields>[0]);
+        } else if (method === "deleteFields") {
+          result = await openApi.smartsheet.deleteFields(args as Parameters<typeof openApi.smartsheet.deleteFields>[0]);
+        } else if (method === "getRecords") {
+          result = await openApi.smartsheet.getRecords(args as Parameters<typeof openApi.smartsheet.getRecords>[0]);
+        } else if (method === "addRecords") {
+          result = await openApi.smartsheet.addRecords(args as Parameters<typeof openApi.smartsheet.addRecords>[0]);
+        } else if (method === "updateRecords") {
+          result = await openApi.smartsheet.updateRecords(args as Parameters<typeof openApi.smartsheet.updateRecords>[0]);
+        } else if (method === "deleteRecords") {
+          result = await openApi.smartsheet.deleteRecords(args as Parameters<typeof openApi.smartsheet.deleteRecords>[0]);
+        } else {
+          throw new Error(`未知的智能表格 API 方法: ${method}`);
+        }
+        break;
+
+      case "contact":
+        if (method === "createUser") {
+          result = await openApi.contact.createUser(args as Parameters<typeof openApi.contact.createUser>[0]);
+        } else if (method === "getUser") {
+          result = await openApi.contact.getUser(args.userid as string);
+        } else if (method === "updateUser") {
+          result = await openApi.contact.updateUser(args as Parameters<typeof openApi.contact.updateUser>[0]);
+        } else if (method === "deleteUser") {
+          result = await openApi.contact.deleteUser(args.userid as string);
+        } else if (method === "getDepartmentUsers") {
+          result = await openApi.contact.getDepartmentUsers(args.department_id as number, args.fetch_child as 0 | 1 | undefined);
+        } else if (method === "createDepartment") {
+          result = await openApi.contact.createDepartment(args as Parameters<typeof openApi.contact.createDepartment>[0]);
+        } else if (method === "updateDepartment") {
+          result = await openApi.contact.updateDepartment(args as Parameters<typeof openApi.contact.updateDepartment>[0]);
+        } else if (method === "deleteDepartment") {
+          result = await openApi.contact.deleteDepartment(args.id as number);
+        } else if (method === "getDepartmentList") {
+          result = await openApi.contact.getDepartmentList(args.id as number | undefined);
+        } else if (method === "createTag") {
+          result = await openApi.contact.createTag(args as Parameters<typeof openApi.contact.createTag>[0]);
+        } else if (method === "updateTag") {
+          result = await openApi.contact.updateTag(args as Parameters<typeof openApi.contact.updateTag>[0]);
+        } else if (method === "deleteTag") {
+          result = await openApi.contact.deleteTag(args.tagid as number);
+        } else if (method === "getTagUsers") {
+          result = await openApi.contact.getTagUsers(args.tagid as number);
+        } else if (method === "addTagUsers") {
+          result = await openApi.contact.addTagUsers(args as Parameters<typeof openApi.contact.addTagUsers>[0]);
+        } else if (method === "delTagUsers") {
+          result = await openApi.contact.delTagUsers(args as Parameters<typeof openApi.contact.delTagUsers>[0]);
+        } else {
+          throw new Error(`未知的通讯录 API 方法: ${method}`);
+        }
+        break;
+
+      case "doc":
+        if (method === "renameDoc") {
+          result = await openApi.doc.renameDoc(args as Parameters<typeof openApi.doc.renameDoc>[0]);
+        } else if (method === "deleteDoc") {
+          result = await openApi.doc.deleteDoc(args as Parameters<typeof openApi.doc.deleteDoc>[0]);
+        } else if (method === "getDocInfo") {
+          result = await openApi.doc.getDocInfo(args.docid as string);
+        } else if (method === "shareDoc") {
+          result = await openApi.doc.shareDoc(args as Parameters<typeof openApi.doc.shareDoc>[0]);
+        } else if (method === "getDocPermission") {
+          result = await openApi.doc.getDocPermission(args.docid as string);
+        } else if (method === "modifyDocMembers") {
+          result = await openApi.doc.modifyDocMembers(args as Parameters<typeof openApi.doc.modifyDocMembers>[0]);
+        } else if (method === "modifyDocSecurity") {
+          result = await openApi.doc.modifyDocSecurity(args as Parameters<typeof openApi.doc.modifyDocSecurity>[0]);
+        } else if (method === "createCollector") {
+          result = await openApi.doc.createCollector(args as Parameters<typeof openApi.doc.createCollector>[0]);
+        } else if (method === "getCollectorInfo") {
+          result = await openApi.doc.getCollectorInfo(args.collector_id as string);
+        } else if (method === "getCollectorAnswers") {
+          result = await openApi.doc.getCollectorAnswers(args as Parameters<typeof openApi.doc.getCollectorAnswers>[0]);
+        } else if (method === "getDocContent") {
+          result = await openApi.doc.getDocContent(args as Parameters<typeof openApi.doc.getDocContent>[0]);
+        } else if (method === "createDoc") {
+          result = await openApi.doc.createDoc(args as Parameters<typeof openApi.doc.createDoc>[0]);
+        } else if (method === "editDocContent") {
+          result = await openApi.doc.editDocContent(args as Parameters<typeof openApi.doc.editDocContent>[0]);
+        } else if (method === "smartpageCreate") {
+          result = await openApi.doc.smartpageCreate(args as Parameters<typeof openApi.doc.smartpageCreate>[0]);
+        } else if (method === "smartpageExportTask") {
+          result = await openApi.doc.smartpageExportTask(args as Parameters<typeof openApi.doc.smartpageExportTask>[0]);
+        } else if (method === "smartpageGetExportResult") {
+          result = await openApi.doc.smartpageGetExportResult(args as Parameters<typeof openApi.doc.smartpageGetExportResult>[0]);
+        } else {
+          throw new Error(`未知的文档 API 方法: ${method}`);
+        }
+        break;
+
+      case "todo":
+        if (method === "getTodoList") {
+          result = await openApi.todo.getTodoList(args as Parameters<typeof openApi.todo.getTodoList>[0]);
+        } else if (method === "getTodoDetail") {
+          result = await openApi.todo.getTodoDetail(args as Parameters<typeof openApi.todo.getTodoDetail>[0]);
+        } else if (method === "createTodo") {
+          result = await openApi.todo.createTodo(args as Parameters<typeof openApi.todo.createTodo>[0]);
+        } else if (method === "updateTodo") {
+          result = await openApi.todo.updateTodo(args as Parameters<typeof openApi.todo.updateTodo>[0]);
+        } else if (method === "deleteTodo") {
+          result = await openApi.todo.deleteTodo(args as Parameters<typeof openApi.todo.deleteTodo>[0]);
+        } else if (method === "changeTodoUserStatus") {
+          result = await openApi.todo.changeTodoUserStatus(args as Parameters<typeof openApi.todo.changeTodoUserStatus>[0]);
+        } else {
+          throw new Error(`未知的待办 API 方法: ${method}`);
+        }
+        break;
+
+      case "schedule":
+        if (method === "createCalendar") {
+          result = await openApi.schedule.createCalendar(args as Parameters<typeof openApi.schedule.createCalendar>[0]);
+        } else if (method === "getScheduleListByRange") {
+          result = await openApi.schedule.getScheduleListByRange(args as Parameters<typeof openApi.schedule.getScheduleListByRange>[0]);
+        } else if (method === "getScheduleDetail") {
+          result = await openApi.schedule.getScheduleDetail(args as Parameters<typeof openApi.schedule.getScheduleDetail>[0]);
+        } else if (method === "createSchedule") {
+          result = await openApi.schedule.createSchedule(args as Parameters<typeof openApi.schedule.createSchedule>[0]);
+        } else if (method === "updateSchedule") {
+          result = await openApi.schedule.updateSchedule(args as Parameters<typeof openApi.schedule.updateSchedule>[0]);
+        } else if (method === "cancelSchedule") {
+          result = await openApi.schedule.cancelSchedule(args as Parameters<typeof openApi.schedule.cancelSchedule>[0]);
+        } else if (method === "addScheduleAttendees") {
+          result = await openApi.schedule.addScheduleAttendees(args as Parameters<typeof openApi.schedule.addScheduleAttendees>[0]);
+        } else if (method === "delScheduleAttendees") {
+          result = await openApi.schedule.delScheduleAttendees(args as Parameters<typeof openApi.schedule.delScheduleAttendees>[0]);
+        } else {
+          throw new Error(`未知的日程 API 方法: ${method}`);
+        }
+        break;
+
+      case "meeting":
+        if (method === "create") {
+          result = await openApi.meeting.create(args as Parameters<typeof openApi.meeting.create>[0]);
+        } else if (method === "cancel") {
+          result = await openApi.meeting.cancel(args as Parameters<typeof openApi.meeting.cancel>[0]);
+        } else if (method === "getInfo") {
+          result = await openApi.meeting.getInfo(args as Parameters<typeof openApi.meeting.getInfo>[0]);
+        } else if (method === "listUserMeetings") {
+          result = await openApi.meeting.listUserMeetings(args as Parameters<typeof openApi.meeting.listUserMeetings>[0]);
+        } else if (method === "update") {
+          result = await openApi.meeting.update(args as Parameters<typeof openApi.meeting.update>[0]);
+        } else {
+          throw new Error(`未知的会议 API 方法: ${method}`);
+        }
+        break;
+
+      case "msg":
+        if (method === "getMsgChatList") {
+          result = await openApi.msg.getMsgChatList(args as Parameters<typeof openApi.msg.getMsgChatList>[0]);
+        } else if (method === "getMessage") {
+          result = await openApi.msg.getMessage(args as Parameters<typeof openApi.msg.getMessage>[0]);
+        } else if (method === "getMsgMedia") {
+          result = await openApi.msg.getMsgMedia(args as Parameters<typeof openApi.msg.getMsgMedia>[0]);
+        } else if (method === "sendMessage") {
+          result = await openApi.msg.sendMessage(args as Parameters<typeof openApi.msg.sendMessage>[0]);
+        } else {
+          throw new Error(`未知的消息会话 API 方法: ${method}`);
+        }
+        break;
+
+      default:
+        throw new Error(`未知的 OpenAPI 品类: ${category}，支持 message/smartsheet/contact/doc/todo/schedule/meeting/msg`);
+    }
+
+    const elapsed = (performance.now() - startTime).toFixed(1);
+    console.log(`[openapi] handleOpenApi ${category}/${method} 成功，耗时: ${elapsed}ms`);
+
+    return result;
+  } catch (err) {
+    if (err instanceof OpenApiError) {
+      console.error(`[openapi] handleOpenApi ${category}/${method} API 错误: errcode=${err.errcode}, errmsg=${err.errmsg}`);
+      return { errcode: err.errcode, errmsg: err.errmsg };
+    }
+    throw err;
+  }
+};
+
 export function createWeComMcpTool() {
   return {
     name: "wecom_mcp",
-    label: "企业微信 MCP 工具",
+    label: "企业微信 OpenAPI 工具",
     description: [
-      "通过 HTTP 直接调用企业微信 MCP Server。",
-      "支持两种操作：",
-      "  - list: 列出指定品类的所有 MCP 工具",
-      "  - call: 调用指定品类的某个 MCP 工具",
+      "直接调用企业微信 OpenAPI 接口（需要配置 corpId 和 agentSecret）",
       "",
       "使用方式：",
-      "  wecom_mcp list <category>",
-      "  wecom_mcp call <category> <method> '<jsonArgs>'",
+      "  wecom_mcp openapi <category> <method> '<jsonArgs>'",
       "",
-      "示例：",
-      "  列出 contact 品类所有工具：wecom_mcp list contact",
-      "  调用 contact 的 getContact：wecom_mcp call contact getContact '{}'",
+      "品类列表：",
+      "  - message: 消息推送（send/recall/createAppChat/updateAppChat/getAppChat/sendAppChatMessage）",
+      "  - smartsheet: 智能表格（addView/deleteViews/updateView/getViews/getSheet/addSheet/updateSheet/deleteSheet/getFields/addFields/updateFields/deleteFields/getRecords/addRecords/updateRecords/deleteRecords）",
+      "  - contact: 通讯录管理（createUser/getUser/updateUser/deleteUser/getDepartmentUsers/createDepartment/updateDepartment/deleteDepartment/getDepartmentList/createTag/updateTag/deleteTag/getTagUsers/addTagUsers/delTagUsers）",
+      "  - doc: 文档管理（renameDoc/deleteDoc/getDocInfo/shareDoc/getDocPermission/modifyDocMembers/modifyDocSecurity/createCollector/getCollectorInfo/getCollectorAnswers/getDocContent/createDoc/editDocContent/smartpageCreate/smartpageExportTask/smartpageGetExportResult）",
+      "  - todo: 待办事项（getTodoList/getTodoDetail/createTodo/updateTodo/deleteTodo/changeTodoUserStatus）",
+      "  - schedule: 日程管理（createCalendar/getScheduleListByRange/getScheduleDetail/createSchedule/updateSchedule/cancelSchedule/addScheduleAttendees/delScheduleAttendees）",
+      "  - meeting: 会议管理（create/cancel/getInfo/listUserMeetings/update）",
+      "  - msg: 消息会话（getMsgChatList/getMessage/getMsgMedia/sendMessage）",
     ].join("\n"),
     parameters: {
       type: "object" as const,
       properties: {
         action: {
           type: "string",
-          enum: ["list", "call"],
-          description: "操作类型：list（列出工具）或 call（调用工具）",
+          enum: ["openapi"],
+          description: "操作类型：openapi（直接调用 OpenAPI）",
         },
         category: {
           type: "string",
-          description: "MCP 品类名称，如 doc、contact 等，对应 mcpConfig 中的 key",
+          description: "OpenAPI 品类：message/smartsheet/contact/doc/todo/schedule/meeting/msg",
         },
         method: {
           type: "string",
-          description: "要调用的 MCP 方法名（action=call 时必填）",
+          description: "要调用的方法名",
         },
         args: {
           type: ["string", "object"],
-          description: "调用 MCP 方法的参数，可以是 JSON 字符串或对象（action=call 时使用，默认 {}）",
+          description: "调用方法的参数，可以是 JSON 字符串或对象（默认 {}）",
         },
       },
-      required: ["action", "category"],
+      required: ["action", "category", "method"],
     },
     async execute(_toolCallId: string, params: unknown) {
       const p = params as WeComToolsParams;
       console.log(
-        `[mcp] execute: action=${p.action}, category=${p.category}` +
-        (p.method ? `, method=${p.method}` : "") +
+        `[openapi] execute: category=${p.category}, method=${p.method}` +
         (p.args ? `, args=${typeof p.args === "string" ? p.args : JSON.stringify(p.args)}` : ""),
       );
       try {
-        let result: ReturnType<typeof textResult>;
-        switch (p.action) {
-          case "list":
-            result = textResult(await handleList(p.category));
-            break;
-          case "call": {
-            if (!p.method) {
-              result = textResult({ error: "action 为 call 时必须提供 method 参数" });
-              break;
-            }
-            const args = parseArgs(p.args);
-            result = textResult(await handleCall(p.category, p.method, args));
-            break;
-          }
-          default:
-            result = textResult({ error: `未知操作类型: ${String(p.action)}，支持 list 和 call` });
-        }
+        const args = parseArgs(p.args);
+        const result = textResult(await handleOpenApi(p.category, p.method, args));
         console.log(
-          `[mcp] execute: action=${p.action}, category=${p.category}` +
-          (p.method ? `, method=${p.method}` : "") +
+          `[openapi] execute: category=${p.category}, method=${p.method}` +
           ` → 响应长度=${result.content[0].text.length} chars`,
         );
         return result;
       } catch (err) {
         console.error(
-          `[mcp] execute: action=${p.action}, category=${p.category}` +
-          (p.method ? `, method=${p.method}` : "") +
+          `[openapi] execute: category=${p.category}, method=${p.method}` +
           ` → 异常: ${err instanceof Error ? err.message : String(err)}`,
         );
         return errorResult(err);

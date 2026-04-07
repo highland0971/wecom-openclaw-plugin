@@ -8,7 +8,7 @@
  * 指向的本地文件内容，填入 page_content 字段，并移除 page_filepath。
  *
  * 入参约定：
- *   wecom_mcp call doc smartpage_create '{
+ *   wecom_mcp openapi doc smartpageCreate '{
  *     "title": "主页标题",
  *     "pages": [
  *       {"page_title": "页面1", "page_filepath": "/tmp/page1.md", "content_type": "markdown"},

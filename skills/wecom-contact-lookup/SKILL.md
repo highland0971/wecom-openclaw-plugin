@@ -19,7 +19,7 @@ description: 通讯录成员查询技能，基于 MCP tool 协议封装的 `get_
 
 **调用示例：**
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'`
 
 **返回格式：**
 
@@ -95,7 +95,7 @@ description: 通讯录成员查询技能，基于 MCP tool 协议封装的 `get_
 
 用户问："帮我查一下 Sam 是谁？"
 
-1. 使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'` 获取全量成员列表
+1. 使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'` 获取全量成员列表
 
 2. 在结果中筛选 `alias` 为 `Sam` 或 `name` 包含 `Sam` 的成员
 3. 若找到唯一匹配，直接展示结果：
@@ -124,7 +124,7 @@ description: 通讯录成员查询技能，基于 MCP tool 协议封装的 `get_
 
 用户问："帮我发消息给张三"
 
-1. 使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'` 获取全量成员
+1. 使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'` 获取全量成员
 
 2. 筛选 `name` 为"张三"的成员，确认 `userid`
 3. 将 `userid` 传递给消息发送接口
@@ -135,7 +135,7 @@ description: 通讯录成员查询技能，基于 MCP tool 协议封装的 `get_
 
 用户问："帮我查一下张三和李四分别是谁？"
 
-1. 使用 `wecom_mcp` tool 调用 `wecom_mcp call contact get_userlist '{}'` 获取全量成员列表
+1. 使用 `wecom_mcp` tool 调用 `wecom_mcp openapi contact get_userlist '{}'` 获取全量成员列表
 
 2. 分别筛选"张三"和"李四"的匹配结果
 3. 汇总后一并展示

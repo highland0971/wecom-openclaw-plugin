@@ -19,7 +19,7 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 
 查看可用命令列表：使用 `wecom_mcp` tool 调用 `wecom_mcp list meeting`
 
-执行指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting <tool_name> '<json_params>'`
+执行指定命令：使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting <tool_name> '<json_params>'`
 ---
 
 ## 命令详细说明
@@ -30,7 +30,7 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 
 #### 执行命令
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting list_user_meetings '{"begin_datetime": "2026-03-01 00:00", "end_datetime": "2026-03-31 23:59", "limit": 100}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting list_user_meetings '{"begin_datetime": "2026-03-01 00:00", "end_datetime": "2026-03-31 23:59", "limit": 100}'`
 
 #### 入参说明
 
@@ -67,7 +67,7 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 
 #### 执行命令
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting get_meeting_info '{"meetingid": "<会议id>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting get_meeting_info '{"meetingid": "<会议id>"}'`
 
 #### 入参说明
 
@@ -237,12 +237,12 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 1. **确定时间范围**: 根据当前日期计算本周的起止时间.
 2. **查询会议 ID 列表**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting list_user_meetings '{"begin_datetime": "2026-03-16 00:00", "end_datetime": "2026-03-22 23:59", "limit": 100}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting list_user_meetings '{"begin_datetime": "2026-03-16 00:00", "end_datetime": "2026-03-22 23:59", "limit": 100}'`
 
 3. **逐个查询会议详情** (对返回的每个 meetingid):
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting get_meeting_info '{"meetingid": "<会议id1>"}'`
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting get_meeting_info '{"meetingid": "<会议id2>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting get_meeting_info '{"meetingid": "<会议id1>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting get_meeting_info '{"meetingid": "<会议id2>"}'`
 
 4. **汇总展示**:
 
@@ -275,7 +275,7 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 1. **定位会议**: 先通过会议列表查询找到目标会议的 meetingid (按关键词匹配).
 2. **查询详情**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting get_meeting_info '{"meetingid": "<target_meetingid>"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting get_meeting_info '{"meetingid": "<target_meetingid>"}'`
 
 3. **展示结果**:
 
@@ -303,7 +303,7 @@ wecom-meeting-query 提供企业微信会议查询能力, 包含以下功能:
 1. **确定查询范围**: 默认查当日前后 30 天 (接口限制范围).
 2. **拉取会议列表**:
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call meeting list_user_meetings '{"begin_datetime": "2026-02-15 00:00", "end_datetime": "2026-04-16 23:59", "limit": 100}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi meeting list_user_meetings '{"begin_datetime": "2026-02-15 00:00", "end_datetime": "2026-04-16 23:59", "limit": 100}'`
 
 3. **逐个查询详情并匹配标题关键词**.
 4. **找到匹配后停止查询, 展示结果**:

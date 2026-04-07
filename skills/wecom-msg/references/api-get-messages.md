@@ -16,15 +16,15 @@
 
 单聊：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
 
 群聊：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_message '{"chat_type": 2, "chatid": "wrxxxxxxxx", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_message '{"chat_type": 2, "chatid": "wrxxxxxxxx", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00"}'`
 
 分页请求：
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00", "cursor": "CURSOR_xxxxxx"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_message '{"chat_type": 1, "chatid": "zhangsan", "begin_time": "2026-03-17 09:00:00", "end_time": "2026-03-17 18:00:00", "cursor": "CURSOR_xxxxxx"}'`
 
 ## 返回字段
 

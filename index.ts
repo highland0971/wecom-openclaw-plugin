@@ -1,9 +1,13 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { emptyPluginConfigSchema } from "./src/openclaw-compat.js";
 import { wecomPlugin } from "./src/channel.js";
 import { createWeComMcpTool } from "./src/mcp";
 import { setWeComRuntime } from "./src/runtime.js";
 import { CHANNEL_ID } from "./src/const.js";
+import { initOpenApiService } from "./src/openapi/index.js";
+import { resolveWeComAccount } from "./src/utils.js";
+import { handleWeComCallback } from "./src/callback/index.js";
 
 // ============================================================================
 // 需要自动注入 tools.alsoAllow 的工具名列表
@@ -84,14 +88,49 @@ const plugin = {
     setWeComRuntime(api.runtime);
     api.registerChannel({ plugin: wecomPlugin });
 
-    // 注册 wecom_mcp：通过 HTTP 直接调用企业微信 MCP Server
     api.registerTool(createWeComMcpTool(), { name: "wecom_mcp" });
 
-    // ── Gateway 启动时自动确保 tools.alsoAllow 包含 wecom_mcp ──────────
-    // 在 gateway_start 阶段检测并写入，保证插件安装/更新后首次启动即生效
-    // api.on("gateway_start", async () => {
-    //   await ensureToolsAlsoAllow(api);
-    // });
+    const cfg = api.runtime.config.loadConfig();
+    const account = resolveWeComAccount(cfg);
+
+    if (account.corpId && account.agentSecret) {
+      initOpenApiService(
+        {
+          getCorpId: () => account.corpId,
+          getAgentId: () => account.agentId,
+          getAgentSecret: () => account.agentSecret,
+        },
+        api.runtime as unknown as RuntimeEnv
+      );
+      console.log("[wecom] OpenAPI 服务已初始化");
+    } else {
+      console.log("[wecom] OpenAPI 服务未启用（需要配置 corpId 和 agentSecret）");
+    }
+
+    // 注册企业微信回调路由（如果配置了回调参数）
+    const callbackConfig = (cfg as any).channels?.wecom?.callback;
+    if (callbackConfig && callbackConfig.token && callbackConfig.encodingAESKey) {
+      const callbackPath = callbackConfig.path || "/wecom/callback";
+      
+      api.registerHttpRoute({
+        path: callbackPath,
+        handler: async (req, res) => {
+          return handleWeComCallback(req, res, {
+            callback: callbackConfig,
+            runtime: api.runtime as any,
+            accountId: account.accountId || "default",
+            corpId: account.corpId || callbackConfig.corpId,
+            agentId: account.agentId,
+            agentSecret: account.agentSecret,
+            config: cfg
+          });
+        },
+        auth: "plugin",
+        match: "exact"
+      });
+      
+      console.log(`[wecom] 回调路由已注册: ${callbackPath}`);
+    }
 
     // 注入媒体发送指令和文件大小限制提示词（仅对企业微信 channel 生效）
     api.on("before_prompt_build", (_event, ctx) => {

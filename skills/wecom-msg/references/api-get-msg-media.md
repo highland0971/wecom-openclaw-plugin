@@ -10,7 +10,7 @@
 
 ## 请求示例
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call msg get_msg_media '{"media_id": "MEDIAID_xxxxxx"}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi msg get_msg_media '{"media_id": "MEDIAID_xxxxxx"}'`
 
 ## 返回字段
 

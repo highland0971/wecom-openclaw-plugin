@@ -22,7 +22,7 @@
 
 ## 请求示例
 
-使用 `wecom_mcp` tool 调用 `wecom_mcp call schedule update_schedule '{"schedule": {"schedule_id": "SCHEDULE_ID", "summary": "更新后的标题", "start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}}'`
+使用 `wecom_mcp` tool 调用 `wecom_mcp openapi schedule update_schedule '{"schedule": {"schedule_id": "SCHEDULE_ID", "summary": "更新后的标题", "start_time": "YYYY-MM-DD HH:MM:SS", "end_time": "YYYY-MM-DD HH:MM:SS"}}'`
 
 ## 返回字段
 
