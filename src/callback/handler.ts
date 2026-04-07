@@ -3,7 +3,7 @@ import { URL } from 'node:url';
 import { verifyCallbackParams } from './signature.js';
 import { decodeEncodingAESKey, decryptMessage } from './crypto.js';
 import { parseCallbackXml, extractEncryptField, type WeComCallbackMessage } from './parser.js';
-import { convertCallbackToMsgContext, isCallbackTextMessage } from './message-adapter.js';
+import { convertCallbackToMsgContext, isCallbackProcessable, isCallbackEventMessage } from './message-adapter.js';
 import { sendCallbackReply } from './reply-sender.js';
 import type { RuntimeEnv } from 'openclaw/plugin-sdk/runtime-env';
 
@@ -194,12 +194,17 @@ async function dispatchMessage(
   
   console.log(`[wecom][callback] Dispatch message: ${JSON.stringify(msg)}`);
 
-  if (!isCallbackTextMessage(msg)) {
-    console.log(`[wecom][callback][${accountId}] Skip non-text message: ${msg.MsgType}`);
+  if (isCallbackEventMessage(msg)) {
+    console.log(`[wecom][callback][${accountId}] Received event: ${msg.Event}, skipping dispatch`);
     return;
   }
 
-  console.log(`[wecom][callback][${accountId}] Text message confirmed, agentId=${agentId}, agentSecret=${agentSecret ? 'present' : 'missing'}`);
+  if (!isCallbackProcessable(msg)) {
+    console.log(`[wecom][callback][${accountId}] Unsupported message type: ${msg.MsgType}`);
+    return;
+  }
+
+  console.log(`[wecom][callback][${accountId}] Processing ${msg.MsgType} message, agentId=${agentId}, agentSecret=${agentSecret ? 'present' : 'missing'}`);
 
   if (!agentId || !agentSecret) {
     console.error(
