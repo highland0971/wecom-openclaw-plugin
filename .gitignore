@@ -27,3 +27,7 @@ test-media-files
 .codebuddy
 
 requirements
+
+# 测试配置（包含敏感信息）
+.wecom-test-config.json
+.env.test

@@ -115,10 +115,21 @@ export function createOpenApiClient(tokenManager: TokenManager) {
     const filename = options.filename || `media_${Date.now()}`;
     const contentType = options.contentType || "application/octet-stream";
 
-    const formData = new FormData();
-    const uint8Array = new Uint8Array(buffer);
-    const blob = new Blob([uint8Array], { type: contentType });
-    formData.append("media", blob, filename);
+    const boundary = `----WebKitFormBoundary${Date.now().toString(16)}`;
+    
+    const parts: Uint8Array[] = [];
+    
+    const header = `--${boundary}\r\nContent-Disposition: form-data; name="media"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`;
+    parts.push(new TextEncoder().encode(header));
+    parts.push(new Uint8Array(buffer));
+    parts.push(new TextEncoder().encode(`\r\n--${boundary}--\r\n`));
+    
+    const body = new Uint8Array(parts.reduce((acc, part) => acc + part.length, 0));
+    let offset = 0;
+    for (const part of parts) {
+      body.set(part, offset);
+      offset += part.length;
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -126,7 +137,10 @@ export function createOpenApiClient(tokenManager: TokenManager) {
     try {
       const response = await fetch(url, {
         method: "POST",
-        body: formData,
+        headers: { 
+          "Content-Type": `multipart/form-data; boundary=${boundary}` 
+        },
+        body: body,
         signal: controller.signal,
       });
 
