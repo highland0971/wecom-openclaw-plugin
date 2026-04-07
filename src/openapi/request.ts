@@ -21,6 +21,11 @@ export class OpenApiError extends Error {
   }
 }
 
+export interface UploadMediaOptions {
+  filename?: string;
+  contentType?: string;
+}
+
 export function createOpenApiClient(tokenManager: TokenManager) {
   const baseUrl = "https://qyapi.weixin.qq.com/cgi-bin";
   const defaultTimeout = 30000;
@@ -96,9 +101,59 @@ export function createOpenApiClient(tokenManager: TokenManager) {
     }
   }
 
+  async function upload<T = unknown>(
+    method: string,
+    buffer: Buffer,
+    type: string,
+    options: UploadMediaOptions = {},
+    requestOptions: RequestOptions = {}
+  ): Promise<T> {
+    const accessToken = await tokenManager.getAccessToken();
+    const url = `${baseUrl}/${method}?access_token=${accessToken}&type=${type}`;
+    const timeout = requestOptions.timeout || 120000;
+
+    const filename = options.filename || `media_${Date.now()}`;
+    const contentType = options.contentType || "application/octet-stream";
+
+    const formData = new FormData();
+    const uint8Array = new Uint8Array(buffer);
+    const blob = new Blob([uint8Array], { type: contentType });
+    formData.append("media", blob, filename);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+
+      const data = (await response.json()) as ApiResponse<T>;
+
+      if (data.errcode !== 0) {
+        throw new OpenApiError(data.errcode, data.errmsg, data);
+      }
+
+      return data as T;
+    } catch (err) {
+      if (err instanceof OpenApiError) {
+        throw err;
+      }
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error(`OpenAPI 上传超时 (${timeout}ms)`);
+      }
+      throw new Error(`OpenAPI 上传失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   return {
     request,
     get,
+    upload,
   };
 }
 

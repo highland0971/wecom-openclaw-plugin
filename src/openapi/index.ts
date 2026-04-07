@@ -2,6 +2,7 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { createTokenManager, type TokenManager } from "./token-manager.js";
 import { createOpenApiClient, type OpenApiClient } from "./request.js";
 import { createMessageApi, type MessageApi } from "./message.js";
+import { createMediaApi, type MediaApi } from "./media.js";
 import { createSmartsheetApi, type SmartsheetApi } from "./smartsheet.js";
 import { createContactApi, type ContactApi } from "./contact.js";
 import { createDocApi, type DocApi } from "./doc.js";
@@ -20,6 +21,7 @@ export interface OpenApiService {
   token: TokenManager;
   client: OpenApiClient;
   message: MessageApi;
+  media: MediaApi;
   smartsheet: SmartsheetApi;
   contact: ContactApi;
   doc: DocApi;
@@ -39,6 +41,7 @@ export function createOpenApiService(config: OpenApiConfig, runtime: RuntimeEnv)
     token,
     client,
     message: createMessageApi(client),
+    media: createMediaApi(client),
     smartsheet: createSmartsheetApi(client),
     contact: createContactApi(client),
     doc: createDocApi(client),
@@ -68,6 +71,7 @@ export function clearOpenApiService(): void {
 }
 
 export { OpenApiError } from "./request.js";
+export type { MediaApi, MediaType, UploadMediaParams, UploadMediaResult } from "./media.js";
 export type { MessageApi, SendMessageParams, SendMessageResult } from "./message.js";
 export type { SmartsheetApi, AddViewParams, AddViewResult, ViewType, ViewProperty } from "./smartsheet.js";
 export type { ContactApi, UserInfo, DepartmentInfo, CreateUserParams } from "./contact.js";
