@@ -9,6 +9,7 @@ import type { RuntimeEnv } from 'openclaw/plugin-sdk/runtime-env';
 
 const MESSAGE_DEDUP_TTL_MS = 5 * 60 * 1000;
 const processedMessages = new Map<string, number>();
+const replyAccumulators = new Map<string, { text: string }>();
 
 function isDuplicateMessage(msgId: string | undefined): boolean {
   if (!msgId) return false;
@@ -223,27 +224,24 @@ async function dispatchMessage(
   const { runtime, accountId, corpId, agentId, agentSecret, config } = ctx;
   
   if (isDuplicateMessage(msg.MsgId)) {
-    console.log(`[wecom][callback][${accountId}] Skipping duplicate message: MsgId=${msg.MsgId}`);
     runtime.log?.(`[wecom][callback][${accountId}] Skipping duplicate message: MsgId=${msg.MsgId}`);
     return;
   }
   
-  console.log(`[wecom][callback] Dispatch message: ${JSON.stringify(msg)}`);
+  runtime.log?.(`[wecom][callback][${accountId}] Received ${msg.MsgType} message from ${msg.FromUserName}`);
 
   if (isCallbackEventMessage(msg)) {
-    console.log(`[wecom][callback][${accountId}] Received event: ${msg.Event}, skipping dispatch`);
+    runtime.log?.(`[wecom][callback][${accountId}] Received event: ${msg.Event}, skipping dispatch`);
     return;
   }
 
   if (!isCallbackProcessable(msg)) {
-    console.log(`[wecom][callback][${accountId}] Unsupported message type: ${msg.MsgType}`);
+    runtime.log?.(`[wecom][callback][${accountId}] Unsupported message type: ${msg.MsgType}`);
     return;
   }
 
-  console.log(`[wecom][callback][${accountId}] Processing ${msg.MsgType} message, agentId=${agentId}, agentSecret=${agentSecret ? 'present' : 'missing'}`);
-
   if (!agentId || !agentSecret) {
-    console.error(
+    runtime.error?.(
       `[wecom][callback][${accountId}] Missing agentId or agentSecret for callback mode`
     );
     return;
@@ -251,30 +249,23 @@ async function dispatchMessage(
 
   try {
     const channelRuntime = (runtime as any).channel;
-    console.log(`[wecom][callback][${accountId}] Channel runtime check: ${channelRuntime ? 'available' : 'NOT available'}`);
     
     if (!channelRuntime) {
-      console.error(`[wecom][callback][${accountId}] Channel runtime not available`);
+      runtime.error?.(`[wecom][callback][${accountId}] Channel runtime not available`);
       return;
     }
 
     const msgContext = convertCallbackToMsgContext(msg, accountId);
-    console.log(`[wecom][callback][${accountId}] Message context created: SessionKey=${msgContext.SessionKey}`);
     
-    // Generate a unique MessageSid for callback mode
     const messageId = generateMessageId();
     const ctxPayload = channelRuntime.reply.finalizeInboundContext({
       ...msgContext,
-      MessageSid: messageId, // Critical: Add MessageSid
-      MessageSidFirst: messageId, // Also add MessageSidFirst for compatibility
-      Timestamp: Date.now(), // Ensure timestamp is set
+      MessageSid: messageId,
+      MessageSidFirst: messageId,
+      Timestamp: Date.now(),
     });
-    console.log(`[wecom][callback][${accountId}] Context finalized, From=${ctxPayload.From}, MessageSid=${ctxPayload.MessageSid}`);
     
     const loadedConfig = config || (runtime as any).config?.loadConfig?.() || {};
-    console.log(`[wecom][callback][${accountId}] Config loaded, calling dispatcher`);
-    console.log(`[wecom][callback][${accountId}] Context: ChatType=${msgContext.ChatType}, SessionKey=${msgContext.SessionKey}`);
-    console.log(`[wecom][callback][${accountId}] Context fields:`, Object.keys(ctxPayload));
 
     await channelRuntime.reply.dispatchReplyWithBufferedBlockDispatcher({
       ctx: ctxPayload,
@@ -282,10 +273,6 @@ async function dispatchMessage(
       replyOptions: { disableBlockStreaming: false },
       dispatcherOptions: {
         deliver: async (payload: ReplyPayload, info: ReplyDispatchInfo) => {
-          console.log(`[wecom][callback][${accountId}] ===== DELIVER CALLED =====`);
-          console.log(`[wecom][callback][${accountId}] Deliver: kind=${info.kind}, hasText=${!!payload.text}, hasMedia=${!!payload.mediaUrl}`);
-          runtime.log?.(`[wecom][callback][${accountId}] Deliver called: kind=${info.kind}`);
-          
           const fromUser = ctxPayload.From?.replace('wecom:', '') || '';
 
           if (!fromUser) {
@@ -293,17 +280,32 @@ async function dispatchMessage(
             return;
           }
 
-          // 只在 final 时发送完整回复，避免 block 阶段的重复发送
-          // OpenClaw 的 dispatchReplyWithBufferedBlockDispatcher 会多次调用 deliver：
-          // - kind='block': 流式块回复（中间状态）
-          // - kind='final': 最终完整回复
-          // 回调模式不支持消息编辑，每次调用 sendCallbackReply 都会发送新消息，
-          // 因此只在 final 时发送，避免用户收到多条重复回复
-          if (payload.text && info.kind === 'final') {
+          const sessionKey = ctxPayload.SessionKey || `wecom:${fromUser}`;
+          
+          if (payload.text) {
+            const accumulator = replyAccumulators.get(sessionKey) || { text: '' };
+            accumulator.text += payload.text;
+            replyAccumulators.set(sessionKey, accumulator);
+          }
+        },
+        onError: (err: unknown, info: ReplyDispatchInfo) => {
+          runtime.error?.(`[wecom][callback][${accountId}] ${info.kind} reply failed: ${String(err)}`);
+        },
+        onIdle: async () => {
+          const sessionKey = ctxPayload.SessionKey || `wecom:${ctxPayload.From?.replace('wecom:', '')}`;
+          const accumulator = replyAccumulators.get(sessionKey);
+          
+          if (accumulator && accumulator.text) {
+            // 立即删除，防止 onIdle 被多次调用时重复发送
+            const textToSend = accumulator.text;
+            replyAccumulators.delete(sessionKey);
+            
+            const fromUser = ctxPayload.From?.replace('wecom:', '') || '';
+            
             runtime.log?.(
-              `[wecom][callback][${accountId}] Deliver ${info.kind}: ${payload.text.substring(0, 50)}...`
+              `[wecom][callback][${accountId}] Sending reply (${textToSend.length} chars)`
             );
-
+            
             try {
               await sendCallbackReply({
                 corpId,
@@ -311,24 +313,16 @@ async function dispatchMessage(
                 runtime,
                 accountId,
                 toUser: fromUser,
-                content: payload.text,
+                content: textToSend,
                 msgType: 'markdown'
               });
               runtime.log?.(`[wecom][callback][${accountId}] Reply sent successfully`);
             } catch (err) {
               runtime.error?.(
-                `[wecom][callback][${accountId}] Deliver failed: ${String(err)}`
+                `[wecom][callback][${accountId}] Reply send failed: ${String(err)}`
               );
             }
-          } else if (info.kind === 'block') {
-            // block 阶段的日志，用于调试
-            runtime.log?.(
-              `[wecom][callback][${accountId}] Skipping block reply (waiting for final)`
-            );
           }
-        },
-        onError: (err: unknown, info: ReplyDispatchInfo) => {
-          runtime.error?.(`[wecom][callback][${accountId}] ${info.kind} reply failed: ${String(err)}`);
         },
       }
     });
