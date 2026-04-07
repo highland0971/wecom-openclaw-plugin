@@ -10,10 +10,13 @@
  * 示例：
  *   wecom_mcp openapi message send '{"touser": "user1", "msgtype": "text", ...}'
  *   wecom_mcp openapi smartsheet addView '{"docid": "...", ...}'
+ *   wecom_mcp openapi media upload '{"filePath": "/path/to/image.png", "type": "image"}'
  */
 
 import { getOpenApiService } from "../openapi/index.js";
 import { OpenApiError } from "../openapi/request.js";
+import { readFileSync, existsSync, statSync } from "fs";
+import { extname } from "path";
 
 interface WeComToolsParams {
   action: "openapi";
@@ -266,8 +269,57 @@ const handleOpenApi = async (
         }
         break;
 
+      case "media":
+        if (method === "upload") {
+          const filePath = args.filePath as string;
+          const mediaType = (args.type || "file") as "image" | "voice" | "video" | "file";
+          
+          if (!filePath) {
+            throw new Error("media upload 需要 filePath 参数");
+          }
+          if (!existsSync(filePath)) {
+            throw new Error(`文件不存在: ${filePath}`);
+          }
+          
+          const stats = statSync(filePath);
+          const maxSize = mediaType === "voice" ? 2 * 1024 * 1024 : 
+                          mediaType === "image" || mediaType === "video" ? 10 * 1024 * 1024 : 
+                          20 * 1024 * 1024;
+          if (stats.size > maxSize) {
+            throw new Error(`文件大小 ${stats.size} 超过限制 ${maxSize} 字节`);
+          }
+          
+          const buffer = readFileSync(filePath);
+          const filename = args.filename as string || filePath.split("/").pop() || `media_${Date.now()}`;
+          
+          const contentTypeMap: Record<string, string> = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".mp4": "video/mp4",
+            ".amr": "audio/amr",
+            ".pdf": "application/pdf",
+            ".txt": "text/plain",
+          };
+          const ext = extname(filename).toLowerCase();
+          const contentType = args.contentType as string || contentTypeMap[ext] || "application/octet-stream";
+          
+          result = await openApi.media.upload({
+            buffer,
+            type: mediaType,
+            filename,
+            contentType,
+          });
+        } else if (method === "get") {
+          result = await openApi.media.get(args.mediaId as string);
+        } else {
+          throw new Error(`未知的媒体 API 方法: ${method}`);
+        }
+        break;
+
       default:
-        throw new Error(`未知的 OpenAPI 品类: ${category}，支持 message/smartsheet/contact/doc/todo/schedule/meeting/msg`);
+        throw new Error(`未知的 OpenAPI 品类: ${category}，支持 message/smartsheet/contact/doc/todo/schedule/meeting/msg/media`);
     }
 
     const elapsed = (performance.now() - startTime).toFixed(1);
@@ -302,6 +354,7 @@ export function createWeComMcpTool() {
       "  - schedule: 日程管理（createCalendar/getScheduleListByRange/getScheduleDetail/createSchedule/updateSchedule/cancelSchedule/addScheduleAttendees/delScheduleAttendees）",
       "  - meeting: 会议管理（create/cancel/getInfo/listUserMeetings/update）",
       "  - msg: 消息会话（getMsgChatList/getMessage/getMsgMedia/sendMessage）",
+      "  - media: 媒体素材（upload/get）- 上传/获取临时素材",
     ].join("\n"),
     parameters: {
       type: "object" as const,
@@ -313,7 +366,7 @@ export function createWeComMcpTool() {
         },
         category: {
           type: "string",
-          description: "OpenAPI 品类：message/smartsheet/contact/doc/todo/schedule/meeting/msg",
+          description: "OpenAPI 品类：message/smartsheet/contact/doc/todo/schedule/meeting/msg/media",
         },
         method: {
           type: "string",
