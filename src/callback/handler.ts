@@ -7,6 +7,30 @@ import { convertCallbackToMsgContext, isCallbackProcessable, isCallbackEventMess
 import { sendCallbackReply } from './reply-sender.js';
 import type { RuntimeEnv } from 'openclaw/plugin-sdk/runtime-env';
 
+const MESSAGE_DEDUP_TTL_MS = 5 * 60 * 1000;
+const processedMessages = new Map<string, number>();
+
+function isDuplicateMessage(msgId: string | undefined): boolean {
+  if (!msgId) return false;
+  
+  const now = Date.now();
+  const lastProcessed = processedMessages.get(msgId);
+  
+  if (lastProcessed && (now - lastProcessed) < MESSAGE_DEDUP_TTL_MS) {
+    return true;
+  }
+  
+  processedMessages.set(msgId, now);
+  
+  for (const [key, timestamp] of processedMessages) {
+    if (now - timestamp > MESSAGE_DEDUP_TTL_MS) {
+      processedMessages.delete(key);
+    }
+  }
+  
+  return false;
+}
+
 interface ReplyPayload {
   text?: string;
   mediaUrl?: string;
@@ -164,13 +188,19 @@ async function handleMessageCallback(
 
     const parsed = await parseCallbackXml(msg);
     runtime.log?.(
-      `[wecom][callback][${accountId}] Message received: MsgType=${parsed.MsgType}, From=${parsed.FromUserName}`
+      `[wecom][callback][${accountId}] Message received: MsgType=${parsed.MsgType}, From=${parsed.FromUserName}, MsgId=${parsed.MsgId}`
     );
 
-    await dispatchMessage(parsed, ctx);
-
+    // 立即返回成功响应，避免企业微信 5 秒超时重试
+    // 然后异步处理消息
     res.statusCode = 200;
     res.end('success');
+
+    // 异步处理消息（fire and forget）
+    dispatchMessage(parsed, ctx).catch((err) => {
+      runtime.error?.(`[wecom][callback][${accountId}] Async dispatch failed: ${String(err)}`);
+    });
+
     return true;
 
   } catch (err) {
@@ -191,6 +221,12 @@ async function dispatchMessage(
   ctx: CallbackHandlerContext
 ): Promise<void> {
   const { runtime, accountId, corpId, agentId, agentSecret, config } = ctx;
+  
+  if (isDuplicateMessage(msg.MsgId)) {
+    console.log(`[wecom][callback][${accountId}] Skipping duplicate message: MsgId=${msg.MsgId}`);
+    runtime.log?.(`[wecom][callback][${accountId}] Skipping duplicate message: MsgId=${msg.MsgId}`);
+    return;
+  }
   
   console.log(`[wecom][callback] Dispatch message: ${JSON.stringify(msg)}`);
 
